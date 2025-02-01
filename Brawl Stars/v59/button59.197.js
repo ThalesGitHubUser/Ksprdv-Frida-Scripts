@@ -13,8 +13,34 @@ const MovieClip_gotoAndStopFrameIndex = new NativeFunction(base.add(0x951044), '
 const DisplayObject_setXY = new NativeFunction(base.add(0x94CF04), 'void', ['pointer', 'float', 'float']); 
 const Stage_addChild = new NativeFunction(base.add(0x967D4C), 'pointer', ['pointer', 'pointer']);
 
-// Utils in BS+
-// ClearStringObjects in bsd-44
+const Utils = {
+    StringCtor(ptr, strptr) {
+        StringCtor(ptr, strptr);
+    },
+    createStringPtr(str) {
+        var ptr = malloc(str.length + 1);
+        Memory.writeUtf8String(ptr, str);
+        return ptr;
+    },
+    createStringObject(str) {
+        var strptr = Utils.createStringPtr(str);
+        let ptr = malloc(128);
+        Utils.StringCtor(ptr, strptr);
+        return ptr;
+    },
+    strPtr(content) {
+        return Memory.allocUtf8String(content);
+    }
+}
+
+function ClearStringObjects(StrObjectPtrArray) {
+    for (let ptr of StrObjectPtrArray) {
+        WriteToMemory(ptr, "Int", 0);
+        WriteToMemory(ptr.add(4), "Int", 0);
+        WriteToMemory(ptr.add(8), "Int", 0);
+        free(ptr);
+    }
+}
 
 function createButton(text, x, y, callback, arg=null, frame_index=1) {
     let button = malloc(400);
