@@ -5,12 +5,24 @@ var cache = {
 
 const base = Process.findModuleByName('libg.so').base;
 
-const SERVER_CONNECTION = 12092400;
-const PTHREAD_COND_WAKE_RETURN = 7677443;
-const WAKEUP_RETURN_ARRAY = [609476, 838424, 1531492, 3588408, 3899500, 4083800];
-const CREATE_MESSAGE_BY_TYPE = 562308;
-const SELECT_RETURN = 3002868;
+const SERVER_CONNECTION = 0xBE95A8;
+const PTHREAD_COND_WAKE_RETURN = 0x79A0BA + 8 + 1;
+const CREATE_MESSAGE_BY_TYPE = 0x30EADC;
+//const SELECT_RETURN = 0x1F1894;
 const POINTER_SIZE = 4;
+
+const ADD_FILE = 0x35F950;
+const stage_offset = 0xBE9504;
+
+const fGuiContainerCtor = new NativeFunction(base.add(0x565D04), 'void', ['pointer']);
+const DropGUIContainer_addGameButton = new NativeFunction(base.add(0x5CF8B4), 'pointer', ['pointer', 'pointer', 'int']);
+const setMovieClip = new NativeFunction(base.add(0x5241C4), 'void', ['pointer', 'pointer']);
+
+const AddFile = new NativeFunction(base.add(ADD_FILE), 'int', ['pointer', 'pointer', 'int', 'int', 'int', 'int', 'int']);
+const fSetText = new NativeFunction(base.add(0x4FE3F8), 'pointer', ['pointer', 'pointer']);
+const StageAdd = new NativeFunction(base.add(0x308418), 'void', ['pointer', 'pointer']);
+const StageRemove = new NativeFunction(base.add(0x18E084), 'void', ['pointer', 'pointer']);
+const StringCtor = new NativeFunction(base.add(0x5702D4), 'pointer', ['pointer', 'pointer']);
 
 var malloc = new NativeFunction(Module.findExportByName('libc.so', 'malloc'), 'pointer', ['int']);
 var free = new NativeFunction(Module.findExportByName('libc.so', 'free'), 'void', ['pointer']);
@@ -24,14 +36,9 @@ var inet_addr = new NativeFunction(Module.findExportByName('libc.so', 'inet_addr
 var libc_send = new NativeFunction(Module.findExportByName('libc.so', 'send'), 'int', ['int', 'pointer', 'int', 'int']);
 var libc_recv = new NativeFunction(Module.findExportByName('libc.so', 'recv'), 'int', ['int', 'pointer', 'int', 'int']);
 
-function toast(toastText) {
-	Java.perform(function() {
-		var context = Java.use('android.app.ActivityThread').currentApplication().getApplicationContext();
-		Java.scheduleOnMainThread(function() {
-			Java.use("android.widget.Toast").makeText(context, Java.use("java.lang.String").$new(toastText), 1).show();
-		});
-	});
-}
+var DebugOpen = 0;
+var buttonX = 860;
+var buttonY = 70;
 
 var Message = {
 	_getByteStream: function(message) {
@@ -154,16 +161,141 @@ var MessageQueue = {
 	}
 };
 
-function setupMessaging() {
-	cache.base = Module.findBaseAddress("libg.so");
-	cache.wakeUpReturnArray = [];
-	for (var i = 0; i < WAKEUP_RETURN_ARRAY.length; i += 1) {
-		cache.wakeUpReturnArray.push(cache.base.add(WAKEUP_RETURN_ARRAY[i]));
+const DebugMenu_getOffsets = {
+	setXY(memory, x, y) {
+	    memory.add(28).writeFloat(x);
+	    memory.add(32).writeFloat(y);
+	},
+	setScale(mem, scale) {
+	    mem.add(12).writeFloat(scale);
+	    mem.add(24).writeFloat(scale);
+	},
+	getHeight(mema) {
+	    return DisplayObject_getHeight(mema);
+	},
+	getWeight(mama) {
+		return DisplayObject_getWeight(mama);
+	},
+	getX(mat) {
+	    return mat.add(28).readFloat();
+	},
+	getY(mum) {
+	    return mum.add(32).readFloat();
+	},
+	getClientHome() {
+		return _0x182472().add(36).readPointer().add(16).readPointer();
 	}
+}
 
+function strPtr(message) {
+    var charPtr = malloc(message.length + 1);
+    Memory.writeUtf8String(charPtr, message);
+    return charPtr
+}
+
+function createStringObject(mmmdmskads) {
+    var land = strPtr(mmmdmskads);
+    let pesocheck = malloc(128);
+    StringCtor(pesocheck, land);
+    return pesocheck;
+}
+
+function SpawnDebugItem(memory, item, text, x, y) {
+    new NativeFunction(base.add(0x46C5E4), 'void', ['pointer'])(memory);
+    let DebugItem = new NativeFunction(base.add(0x605B9C), 'pointer', ['pointer', 'pointer', 'bool'])(strPtr("sc/debug.sc"), strPtr(item), 1);
+    new NativeFunction(base.add(0x479678), 'void', ['pointer', 'pointer'])(memory, DebugItem);
+    new NativeFunction(base.add(0x5EE5E0), 'void', ['pointer', 'float', 'float'])(memory, x, y);
+    fSetText(memory, createStringObject(text));
+	if (item === 'debug_menu_item')
+	{
+		buttonY += 50;
+	}
+}
+
+function enableDebugInfo() {
+    Interceptor.replace(base.add(0x2FDB34), new NativeCallback(function() {
+            return 0;
+        }, 'int', []));
+        
+    Interceptor.replace(base.add(0x5EBA74), new NativeCallback(function() {
+            return 1;
+        }, 'int', []));
+
+	Interceptor.attach(base.add(0x4E2E08), { // NativeFont::formatString
+			onEnter(args) {
+				args[7] = ptr(1);
+			}
+		});
+	
+	let debugbutton = malloc(1000);
+    SpawnDebugItem(debugbutton, "debug_button", "D", 30, 560);
+    StageAdd(base.add(stage_offset).readPointer(), debugbutton);
+
+	var Debug = malloc(1000);
+	fGuiContainerCtor(Debug)
+	var Clip = new NativeFunction(base.add(0x605B9C), 'pointer', ['pointer', 'pointer', 'bool'])(strPtr("sc/debug.sc"), strPtr('debug_menu'), 1);
+	setMovieClip(Debug, Clip);
+	let btn1 = DropGUIContainer_addGameButton(Debug, Memory.allocUtf8String("close_button"), 1);
+	Debug.add(236).writePointer(btn1);
+    DebugMenu_getOffsets.setScale(Debug, 0.80);
+    DebugMenu_getOffsets.setXY(Debug, 700, 0);
+
+	let AddGems = malloc(500);
+	SpawnDebugItem(AddGems, "debug_menu_item", "WTF!!!???", buttonX, buttonY);
+
+	let RemoveGems = malloc(500);
+	SpawnDebugItem(RemoveGems, "debug_menu_item", "WTF 2 ???", buttonX, buttonY);
+
+	cache.buttonInterceptor = Interceptor.attach(base.add(0x1A9950), {
+        onEnter(args) {
+            if (args[0].toInt32() == debugbutton.toInt32()) {
+                if (DebugOpen === 0)
+                {
+                    StageAdd(base.add(stage_offset).readPointer(), Debug);
+					StageAdd(base.add(stage_offset).readPointer(), AddGems);
+					StageAdd(base.add(stage_offset).readPointer(), RemoveGems);
+                    DebugOpen = 1;
+                }
+                else
+                {
+                    StageRemove(base.add(stage_offset).readPointer(), Debug);
+					StageRemove(base.add(stage_offset).readPointer(), AddGems);
+					StageRemove(base.add(stage_offset).readPointer(), RemoveGems);
+                    DebugOpen = 0;
+                }
+            }
+            if (args[0].toInt32() === btn1.toInt32())
+            {
+                if (DebugOpen === 0)
+                {
+                    StageAdd(base.add(stage_offset).readPointer(), Debug);
+					StageAdd(base.add(stage_offset).readPointer(), AddGems);
+					StageAdd(base.add(stage_offset).readPointer(), RemoveGems);
+                    DebugOpen = 1;
+                }
+                else
+                {
+                    StageRemove(base.add(stage_offset).readPointer(), Debug);
+					StageRemove(base.add(stage_offset).readPointer(), AddGems);
+					StageRemove(base.add(stage_offset).readPointer(), RemoveGems);
+                    DebugOpen = 0;
+                }
+            }
+        }
+    });
+}
+
+const adder = Interceptor.attach(base.add(ADD_FILE), {
+    onEnter: function(args) {
+        adder.detach();
+        AddFile(args[0], strPtr("sc/debug.sc"), -1, -1, -1, -1, 0);
+		console.log('[AddFile] sc/debug.sc load!')
+    }
+});
+
+function setupMessaging() {
 	cache.pthreadReturn = base.add(PTHREAD_COND_WAKE_RETURN);
 	cache.serverConnection = Memory.readPointer(base.add(SERVER_CONNECTION));
-	cache.selectReturn = base.add(SELECT_RETURN);
 	cache.messaging = Memory.readPointer(cache.serverConnection.add(4));
 	cache.messageFactory = Memory.readPointer(cache.messaging.add(52));
 	cache.recvQueue = cache.messaging.add(60);
@@ -192,9 +324,11 @@ function setupMessaging() {
 
 		while (message) {
 			var messageType = Message._getMessageType(message);
+            console.log('[MessageManager::receiveMessage] PacketID: ' + messageType);
 			if (messageType === 10100) {
 				message = Memory.readPointer(cache.loginMessagePtr);
 				Memory.writePointer(cache.loginMessagePtr, ptr(0));
+				//enableDebugInfo();
 			}
 			cache.sendMessage(message);
 			message = MessageQueue._dequeue(cache.sendQueue);
@@ -209,6 +343,7 @@ function setupMessaging() {
 		if (messageType >= 20000) {
 			if (messageType === 20104) { //LoginOk
 				Memory.writeInt(cache.state, 5);
+				enableDebugInfo();
 			}
 
 			var payloadLength = Buffer._getEncodingLength(headerBuffer);
@@ -239,27 +374,28 @@ function setupMessaging() {
 		}
 	});
 
-	Interceptor.replace(Module.findExportByName('libc.so', 'select'), new NativeCallback(function(nfds, readfds, writefds, exceptfds, timeout) {
-		var r = select(nfds, readfds, writefds, exceptfds, timeout);
-		if (this.returnAddress.equals(cache.selectReturn)) {
-			onReceive();
-		}
-		return r;
-	}, 'int', ['int', 'pointer', 'pointer', 'pointer', 'pointer']));
+	Interceptor.attach(Module.findExportByName('libc.so', 'select'), {
+        onEnter: function(args) {
+            onReceive();
+        }
+    });
 }
 
-function setup() {
+function connect() {
 	Interceptor.attach(Module.findExportByName('libc.so', 'connect'), {
 		onEnter: function(args) {
 			if (ntohs(Memory.readU16(args[1].add(2))) === 9339) {
 				cache.fd = args[0].toInt32();
-				var host = Memory.allocUtf8String("127.0.0.1");
+				var host = Memory.allocUtf8String("194.87.55.13");
+				var htons = new NativeFunction(Module.findExportByName('libc.so', 'ntohs'), 'uint16', ['uint16']);
+args[1].add(2).writeU16(htons(9339));
 				Memory.writeInt(args[1].add(4), inet_addr(host));
 				setupMessaging();
-				toast("Server By obed_TEAM");
 			}
 		}
 	});
 }
 
-setup();
+rpc.exports.init = function() {
+    connect()
+}
